@@ -6,17 +6,41 @@ import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
 import { Calculator } from "lucide-react";
 
-export function EMICalculator() {
-  const [loanAmount, setLoanAmount] = useState(100000);
-  const [interestRate, setInterestRate] = useState(8.5);
-  const [tenure, setTenure] = useState(24);
+interface EMICalculatorProps {
+  initialAmount?: number;
+  initialRate?: number;
+  initialTenure?: number;
+  onValuesChange?: (values: { amount: number; rate: number; tenure: number; emi: number }) => void;
+}
+
+export function EMICalculator({
+  initialAmount,
+  initialRate,
+  initialTenure,
+  onValuesChange,
+}: EMICalculatorProps = {}) {
+  const [loanAmount, setLoanAmount] = useState(initialAmount || 100000);
+  const [interestRate, setInterestRate] = useState(initialRate || 8.5);
+  const [tenure, setTenure] = useState(initialTenure || 24);
   const [emi, setEmi] = useState(0);
   const [totalAmount, setTotalAmount] = useState(0);
   const [totalInterest, setTotalInterest] = useState(0);
 
   useEffect(() => {
+    if (initialAmount !== undefined) setLoanAmount(initialAmount);
+    if (initialRate !== undefined) setInterestRate(initialRate);
+    if (initialTenure !== undefined) setTenure(initialTenure);
+  }, [initialAmount, initialRate, initialTenure]);
+
+  useEffect(() => {
     calculateEMI();
   }, [loanAmount, interestRate, tenure]);
+
+  useEffect(() => {
+    if (onValuesChange && emi > 0) {
+      onValuesChange({ amount: loanAmount, rate: interestRate, tenure, emi });
+    }
+  }, [emi, loanAmount, interestRate, tenure, onValuesChange]);
 
   const calculateEMI = () => {
     const principal = loanAmount;

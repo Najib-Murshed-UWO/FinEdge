@@ -9,16 +9,42 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useState } from "react";
+import { useToast } from "@/hooks/use-toast";
+import { useLocation } from "wouter";
 
 export default function LoanApplication() {
   const [loanType, setLoanType] = useState("");
   const [amount, setAmount] = useState("");
   const [purpose, setPurpose] = useState("");
+  const [emiValues, setEmiValues] = useState<{ amount: number; rate: number; tenure: number; emi: number } | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { toast } = useToast();
+  const [, navigate] = useLocation();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    console.log("Loan application submitted:", { loanType, amount, purpose });
-    //todo: remove mock functionality
+    if (!loanType || !amount) {
+      toast({
+        title: "Missing information",
+        description: "Please select a loan type and enter the requested amount.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    // Mock submission - simulate API call
+    setIsSubmitting(true);
+    setTimeout(() => {
+      toast({
+        title: "Application submitted",
+        description: "Your loan application has been submitted for review.",
+      });
+      setAmount("");
+      setPurpose("");
+      setLoanType("");
+      setIsSubmitting(false);
+      navigate("/loans");
+    }, 1000);
   };
 
   const style = {
@@ -92,15 +118,50 @@ export default function LoanApplication() {
                           />
                         </div>
 
-                        <Button type="submit" className="w-full" data-testid="button-submit-application">
-                          Submit Application
+                        <Button
+                          type="submit"
+                          className="w-full"
+                          data-testid="button-submit-application"
+                          disabled={isSubmitting}
+                        >
+                          {isSubmitting ? "Submitting..." : "Submit Application"}
                         </Button>
                       </form>
                     </CardContent>
                   </Card>
                 </div>
 
-                <EMICalculator />
+                <EMICalculator
+                  initialAmount={amount ? parseFloat(amount) : undefined}
+                  onValuesChange={setEmiValues}
+                />
+                {emiValues && emiValues.emi > 0 && (
+                  <Card className="mt-6">
+                    <CardHeader>
+                      <CardTitle>Estimated Loan Details</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Monthly EMI:</span>
+                        <span className="font-semibold">
+                          {new Intl.NumberFormat("en-US", {
+                            style: "currency",
+                            currency: "USD",
+                          }).format(emiValues.emi)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Total Interest:</span>
+                        <span className="font-semibold">
+                          {new Intl.NumberFormat("en-US", {
+                            style: "currency",
+                            currency: "USD",
+                          }).format(emiValues.emi * emiValues.tenure - emiValues.amount)}
+                        </span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
               </div>
             </div>
           </main>

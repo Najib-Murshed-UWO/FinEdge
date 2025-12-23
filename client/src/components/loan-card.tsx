@@ -1,8 +1,10 @@
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Calendar, DollarSign, Percent } from "lucide-react";
+import { LoanDetailsDialog } from "./loan-details-dialog";
 
 interface LoanCardProps {
   loanId: string;
@@ -34,6 +36,7 @@ export function LoanCard({
   status,
   currency = "USD",
 }: LoanCardProps) {
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const progress = (amountPaid / amount) * 100;
 
   return (
@@ -103,13 +106,31 @@ export function LoanCard({
               <Button size="sm" className="flex-1" data-testid={`button-pay-emi-${loanId}`}>
                 Make Payment
               </Button>
-              <Button size="sm" variant="outline" className="flex-1" data-testid={`button-view-details-${loanId}`}>
+              <Button
+                size="sm"
+                variant="outline"
+                className="flex-1"
+                data-testid={`button-view-details-${loanId}`}
+                onClick={() => setDetailsOpen(true)}
+              >
                 View Details
               </Button>
             </div>
           </>
         )}
       </CardContent>
+      <LoanDetailsDialog
+        open={detailsOpen}
+        onOpenChange={setDetailsOpen}
+        loanId={loanId}
+        loanType={loanType}
+        amount={amount}
+        interestRate={interestRate}
+        tenure={tenure}
+        monthlyEMI={monthlyEMI}
+        amountPaid={amountPaid}
+        status={status}
+      />
     </Card>
   );
 }

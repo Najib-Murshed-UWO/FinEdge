@@ -1,4 +1,4 @@
-import { Home, CreditCard, DollarSign, Users, Settings, BarChart3, FileText, Clock } from "lucide-react";
+import { Home, CreditCard, DollarSign, Users, Settings, BarChart3, FileText, Clock, Receipt, Wallet, UserCog } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
   Sidebar,
@@ -23,9 +23,9 @@ interface AppSidebarProps {
 const menuItems = {
   customer: [
     { title: "Dashboard", url: "/dashboard", icon: Home },
-    { title: "Accounts", url: "/accounts", icon: CreditCard },
-    { title: "Transactions", url: "/transactions", icon: DollarSign },
-    { title: "Loans", url: "/loans", icon: FileText },
+    { title: "Bill Payments", url: "/bill-payments", icon: Receipt },
+    { title: "Cards Management", url: "/cards", icon: Wallet },
+    { title: "Account Settings", url: "/account-settings", icon: UserCog },
     { title: "Apply for Loan", url: "/apply-loan", icon: Clock },
   ],
   banker: [

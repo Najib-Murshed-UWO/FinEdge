@@ -12,6 +12,9 @@ import CustomerDashboard from "@/pages/customer-dashboard";
 import BankerDashboard from "@/pages/banker-dashboard";
 import AdminDashboard from "@/pages/admin-dashboard";
 import LoanApplication from "@/pages/loan-application";
+import BillPayments from "@/pages/bill-payments";
+import CardsManagement from "@/pages/cards-management";
+import AccountSettings from "@/pages/account-settings";
 
 function Router() {
   return (
@@ -19,10 +22,16 @@ function Router() {
       <Route path="/" component={LandingPage} />
       <Route path="/login" component={LoginPage} />
       <Route path="/register" component={RegisterPage} />
-      <Route path="/dashboard" component={CustomerDashboard} />
-      <Route path="/accounts" component={CustomerDashboard} />
-      <Route path="/transactions" component={CustomerDashboard} />
-      <Route path="/loans" component={CustomerDashboard} />
+      <Route path="/dashboard">
+        {() => <CustomerDashboard />}
+      </Route>
+      <Route path="/bill-payments">
+        {() => <BillPayments />}
+      </Route>
+      <Route path="/cards" component={CardsManagement} />
+      <Route path="/account-settings">
+        {() => <AccountSettings />}
+      </Route>
       <Route path="/apply-loan" component={LoanApplication} />
       <Route path="/banker/dashboard" component={BankerDashboard} />
       <Route path="/banker/customers" component={BankerDashboard} />

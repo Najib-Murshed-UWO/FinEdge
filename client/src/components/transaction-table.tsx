@@ -73,7 +73,30 @@ export function TransactionTable({ transactions }: TransactionTableProps) {
             <SelectItem value="debit">Debit</SelectItem>
           </SelectContent>
         </Select>
-        <Button variant="outline" data-testid="button-download-statement">
+        <Button
+          variant="outline"
+          data-testid="button-download-statement"
+          onClick={() => {
+            const header = ["Date", "Description", "Type", "Amount", "Balance"];
+            const rows = filteredTransactions.map((t) => [
+              t.date,
+              t.description.replace(/"/g, '""'),
+              t.type,
+              t.amount.toString(),
+              t.balance.toString(),
+            ]);
+            const csv = [header, ...rows]
+              .map((r) => r.map((v) => `"${v}"`).join(","))
+              .join("\n");
+            const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = "transactions.csv";
+            link.click();
+            URL.revokeObjectURL(url);
+          }}
+        >
           <Download className="h-4 w-4 mr-2" />
           Download
         </Button>
