@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -6,35 +6,42 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Link, useLocation } from "wouter";
 import { Shield } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { authAPI } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
 import loginImage from "@assets/generated_images/Login_security_illustration_1d57186c.png";
 
 export default function LoginPage() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const { login, isAuthenticated, user } = useAuth();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      if (user.role === "ADMIN" || user.role === "admin") {
+        setLocation("/admin/dashboard");
+      } else if (user.role === "BANKER" || user.role === "banker") {
+        setLocation("/banker/dashboard");
+      } else {
+        setLocation("/dashboard");
+      }
+    }
+  }, [isAuthenticated, user, setLocation]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     
     try {
-      const response = await authAPI.login({ username, password });
+      await login(username, password);
       toast({
         title: "Success",
         description: "Logged in successfully",
       });
       
-      // Redirect based on role
-      if (response.user.role === "admin") {
-        setLocation("/admin/dashboard");
-      } else if (response.user.role === "banker") {
-        setLocation("/banker/dashboard");
-      } else {
-        setLocation("/dashboard");
-      }
+      // Redirect based on role (handled by useEffect)
     } catch (error: any) {
       toast({
         title: "Error",

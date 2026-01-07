@@ -1,5 +1,6 @@
 package com.finedge.service;
 
+import com.finedge.dto.JwtAuthResponse;
 import com.finedge.dto.LoginRequest;
 import com.finedge.dto.RegisterRequest;
 import com.finedge.dto.UserResponse;
@@ -10,9 +11,8 @@ import com.finedge.model.enums.AuditAction;
 import com.finedge.model.enums.UserRole;
 import com.finedge.repository.CustomerRepository;
 import com.finedge.repository.UserRepository;
-//import com.finedge.service.AuditService;
+import com.finedge.security.JwtTokenProvider;
 import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpSession;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -42,10 +42,13 @@ public class AuthService {
     private AuthenticationManager authenticationManager;
     
     @Autowired
+    private JwtTokenProvider jwtTokenProvider;
+    
+    @Autowired
     private AuditService auditService;
     
     @Transactional
-    public UserResponse register(RegisterRequest request, HttpServletRequest httpRequest) {
+    public JwtAuthResponse register(RegisterRequest request, HttpServletRequest httpRequest) {
         if (userRepository.existsByUsername(request.getUsername())) {
             throw new CustomException("User already exists", 400);
         }
@@ -73,9 +76,16 @@ public class AuthService {
             customerRepository.save(customer);
         }
         
-        // Set session
-        HttpSession session = httpRequest.getSession(true);
-        session.setAttribute("userId", user.getId());
+        // Authenticate user to generate JWT token
+        Authentication authentication = authenticationManager.authenticate(
+            new UsernamePasswordAuthenticationToken(user.getUsername(), request.getPassword())
+        );
+        
+        SecurityContextHolder.getContext().setAuthentication(authentication);
+        
+        // Generate JWT tokens
+        String accessToken = jwtTokenProvider.generateToken(authentication);
+        String refreshToken = jwtTokenProvider.generateRefreshToken(authentication);
         
         // Create audit log
         Map<String, Object> newValues = new HashMap<>();
@@ -84,10 +94,11 @@ public class AuthService {
         auditService.createAuditLog(user.getId(), AuditAction.CREATE, "user", user.getId(), 
             null, newValues, httpRequest);
         
-        return new UserResponse(user.getId(), user.getUsername(), user.getEmail(), user.getRole());
+        UserResponse userResponse = new UserResponse(user.getId(), user.getUsername(), user.getEmail(), user.getRole());
+        return new JwtAuthResponse(accessToken, refreshToken, "Bearer", userResponse);
     }
     
-    public UserResponse login(LoginRequest request, HttpServletRequest httpRequest) {
+    public JwtAuthResponse login(LoginRequest request, HttpServletRequest httpRequest) {
         try {
             Authentication authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(request.getUsername(), request.getPassword())
@@ -101,30 +112,59 @@ public class AuthService {
             user.setLastLogin(LocalDateTime.now());
             userRepository.save(user);
             
-            // Set session
-            HttpSession session = httpRequest.getSession(true);
-            session.setAttribute("userId", user.getId());
+            // Generate JWT tokens
+            String accessToken = jwtTokenProvider.generateToken(authentication);
+            String refreshToken = jwtTokenProvider.generateRefreshToken(authentication);
             
             // Create audit log
             auditService.createAuditLog(user.getId(), AuditAction.LOGIN, "user", user.getId(), 
                 null, null, httpRequest);
             
-            return new UserResponse(user.getId(), user.getUsername(), user.getEmail(), user.getRole());
+            UserResponse userResponse = new UserResponse(user.getId(), user.getUsername(), user.getEmail(), user.getRole());
+            return new JwtAuthResponse(accessToken, refreshToken, "Bearer", userResponse);
         } catch (Exception e) {
             throw new CustomException("Invalid credentials", 401);
         }
     }
     
+    public JwtAuthResponse refreshToken(String refreshToken) {
+        if (!jwtTokenProvider.validateToken(refreshToken)) {
+            throw new CustomException("Invalid refresh token", 401);
+        }
+        
+        String username = jwtTokenProvider.getUsernameFromToken(refreshToken);
+        User user = userRepository.findByUsername(username)
+            .orElseThrow(() -> new CustomException("User not found", 404));
+        
+        if (!user.getIsActive()) {
+            throw new CustomException("User account is inactive", 403);
+        }
+        
+        // Create new authentication
+        Authentication authentication = new UsernamePasswordAuthenticationToken(
+            user.getUsername(), null, 
+            org.springframework.security.core.authority.AuthorityUtils.createAuthorityList("ROLE_" + user.getRole().name())
+        );
+        
+        // Generate new tokens
+        String newAccessToken = jwtTokenProvider.generateToken(authentication);
+        String newRefreshToken = jwtTokenProvider.generateRefreshToken(authentication);
+        
+        UserResponse userResponse = new UserResponse(user.getId(), user.getUsername(), user.getEmail(), user.getRole());
+        return new JwtAuthResponse(newAccessToken, newRefreshToken, "Bearer", userResponse);
+    }
+    
     public void logout(HttpServletRequest httpRequest) {
-        HttpSession session = httpRequest.getSession(false);
-        if (session != null) {
-            String userId = (String) session.getAttribute("userId");
-            if (userId != null) {
-                auditService.createAuditLog(userId, AuditAction.LOGOUT, "user", userId, 
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null) {
+            String username = authentication.getName();
+            User user = userRepository.findByUsername(username).orElse(null);
+            if (user != null) {
+                auditService.createAuditLog(user.getId(), AuditAction.LOGOUT, "user", user.getId(), 
                     null, null, httpRequest);
             }
-            session.invalidate();
         }
+        SecurityContextHolder.clearContext();
     }
     
     public UserResponse getCurrentUser() {

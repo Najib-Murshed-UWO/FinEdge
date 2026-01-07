@@ -88,7 +88,7 @@ public class LoanController {
     public ResponseEntity<Map<String, String>> payEMI(@PathVariable String loanId,
                                                       @PathVariable String emiId,
                                                       @RequestBody Map<String, String> request) {
-        // Implementation for paying EMI
+        loanService.payEMI(loanId, emiId, request.get("accountId"));
         return ResponseEntity.ok(Map.of("message", "EMI paid successfully"));
     }
     

@@ -8,7 +8,6 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -27,23 +26,13 @@ public class AnalyticsController {
     @GetMapping("/banker")
     @PreAuthorize("hasAnyRole('BANKER', 'ADMIN')")
     public ResponseEntity<Map<String, Object>> getBankerAnalytics() {
-        // Implementation for banker analytics
-        return ResponseEntity.ok(Map.of(
-            "pendingApplications", 0,
-            "totalCustomers", 0,
-            "recentActivity", Map.of()
-        ));
+        return ResponseEntity.ok(analyticsService.getBankerAnalytics());
     }
     
     @GetMapping("/admin")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Map<String, Object>> getAdminAnalytics() {
-        // Implementation for admin analytics
-        return ResponseEntity.ok(Map.of(
-            "totalCustomers", 0,
-            "recentAuditLogs", List.of(),
-            "systemHealth", Map.of("status", "operational", "uptime", 0)
-        ));
+        return ResponseEntity.ok(analyticsService.getAdminAnalytics());
     }
 }
 

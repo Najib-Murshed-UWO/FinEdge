@@ -54,6 +54,15 @@ public class LoanService {
     @Autowired
     private AuditService auditService;
     
+    @Autowired
+    private DoubleEntryService doubleEntryService;
+    
+    @Autowired
+    private JournalEntryRepository journalEntryRepository;
+    
+    @Autowired
+    private DoubleEntryService doubleEntryService;
+    
     public List<Loan> getMyLoans() {
         User currentUser = getCurrentUser();
         Customer customer = customerRepository.findByUser(currentUser)
@@ -238,19 +247,33 @@ public class LoanService {
                 // Generate EMI schedule
                 generateEMISchedule(loan, finalAmount, finalRate, finalTenure);
                 
-                // Disburse to account
-                account.setBalance(account.getBalance().add(finalAmount));
-                accountRepository.save(account);
+                // Disburse to account with pessimistic lock and double-entry bookkeeping
+                Account lockedAccount = accountRepository.findByIdWithLock(account.getId())
+                    .orElseThrow(() -> new CustomException("Account not found", 404));
                 
+                // Create journal entry for loan disbursement using double-entry
+                String transactionId = "LOAN-DISB-" + loan.getLoanNumber();
+                JournalEntry journalEntry = doubleEntryService.createLoanDisbursementEntry(
+                    finalAmount, lockedAccount, loan.getLoanNumber(), transactionId
+                );
+                
+                account = lockedAccount; // Update reference
+                
+                // Create transaction record
                 Transaction transaction = new Transaction();
                 transaction.setAccount(account);
+                transaction.setJournalEntry(journalEntry);
                 transaction.setTransactionType(TransactionType.DEPOSIT);
                 transaction.setAmount(finalAmount);
                 transaction.setBalanceAfter(account.getBalance());
                 transaction.setDescription("Loan disbursement - " + loan.getLoanNumber());
                 transaction.setStatus(TransactionStatus.COMPLETED);
                 transaction.setProcessedAt(LocalDateTime.now());
-                transactionRepository.save(transaction);
+                transaction = transactionRepository.save(transaction);
+                
+                // Update journal entry with transaction ID
+                journalEntry.setTransactionId(transaction.getId());
+                journalEntryRepository.save(journalEntry);
                 
                 // Update application
                 application.setStatus(LoanStatus.APPROVED);
@@ -322,6 +345,101 @@ public class LoanService {
         }
         
         emiScheduleRepository.saveAll(schedules);
+    }
+    
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
+    public void payEMI(String loanId, String emiId, String accountId) {
+        User currentUser = getCurrentUser();
+        Customer customer = customerRepository.findByUser(currentUser)
+            .orElseThrow(() -> new CustomException("Customer profile not found", 404));
+        
+        // Lock EMI schedule first to prevent double payment
+        EMISchedule emi = emiScheduleRepository.findByIdWithLock(emiId)
+            .orElseThrow(() -> new CustomException("EMI schedule not found", 404));
+        
+        // Check if already paid (double-check after acquiring lock)
+        if (emi.getIsPaid()) {
+            throw new CustomException("EMI already paid", 400);
+        }
+        
+        if (!emi.getLoan().getId().equals(loanId)) {
+            throw new CustomException("EMI does not belong to this loan", 400);
+        }
+        
+        // Lock loan to prevent concurrent modifications
+        Loan loan = loanRepository.findByIdWithLock(loanId)
+            .orElseThrow(() -> new CustomException("Loan not found", 404));
+        
+        if (!loan.getCustomer().getId().equals(customer.getId())) {
+            throw new CustomException("Forbidden", 403);
+        }
+        
+        // Lock account with pessimistic lock to prevent race conditions
+        Account account = accountRepository.findByIdWithLock(accountId)
+            .orElseThrow(() -> new CustomException("Account not found", 404));
+        
+        if (!account.getCustomer().getId().equals(customer.getId())) {
+            throw new CustomException("Forbidden", 403);
+        }
+        
+        // Check balance with locked account
+        if (account.getBalance().compareTo(emi.getTotalAmount()) < 0) {
+            throw new CustomException("Insufficient funds", 400);
+        }
+        
+        // Create journal entry for EMI payment using double-entry bookkeeping
+        String transactionId = "EMI-PAY-" + loan.getLoanNumber() + "-" + emi.getInstallmentNumber();
+        JournalEntry journalEntry = doubleEntryService.createEMIPaymentEntry(
+            emi.getPrincipalAmount(),
+            emi.getInterestAmount(),
+            account,
+            loan.getLoanNumber(),
+            transactionId
+        );
+        
+        // Update EMI schedule atomically
+        emi.setIsPaid(true);
+        emi.setPaidAmount(emi.getTotalAmount());
+        emi.setPaidAt(LocalDateTime.now());
+        
+        // Create transaction record
+        Transaction transaction = new Transaction();
+        transaction.setAccount(account);
+        transaction.setJournalEntry(journalEntry);
+        transaction.setTransactionType(TransactionType.PAYMENT);
+        transaction.setAmount(emi.getTotalAmount());
+        transaction.setBalanceAfter(account.getBalance());
+        transaction.setDescription("EMI Payment - Installment #" + emi.getInstallmentNumber() + " for Loan " + loan.getLoanNumber());
+        transaction.setStatus(TransactionStatus.COMPLETED);
+        transaction.setProcessedAt(LocalDateTime.now());
+        transaction = transactionRepository.save(transaction);
+        
+        // Update journal entry with transaction ID
+        journalEntry.setTransactionId(transaction.getId());
+        journalEntryRepository.save(journalEntry);
+        
+        emi.setTransaction(transaction);
+        emiScheduleRepository.save(emi);
+        
+        // Update loan amounts atomically
+        BigDecimal newAmountPaid = loan.getAmountPaid().add(emi.getTotalAmount());
+        BigDecimal newAmountRemaining = loan.getAmountRemaining().subtract(emi.getTotalAmount());
+        loan.setAmountPaid(newAmountPaid);
+        loan.setAmountRemaining(newAmountRemaining);
+        
+        // Check if loan is fully paid
+        if (newAmountRemaining.compareTo(BigDecimal.ZERO) <= 0) {
+            loan.setStatus(LoanStatus.CLOSED);
+            loan.setClosedAt(LocalDateTime.now());
+        }
+        
+        loanRepository.save(loan);
+        
+        // Create notification
+        notificationService.createNotification(customer.getUser().getId(), 
+            NotificationType.PAYMENT_DUE, "EMI Paid",
+            "EMI installment #" + emi.getInstallmentNumber() + " of $" + emi.getTotalAmount() + " has been paid successfully",
+            null, "emi_schedule", emiId);
     }
     
     private User getCurrentUser() {

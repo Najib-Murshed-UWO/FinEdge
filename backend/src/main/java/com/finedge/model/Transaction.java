@@ -34,6 +34,10 @@ public class Transaction {
     @JoinColumn(name = "to_account_id")
     private Account toAccount;
     
+    @ManyToOne
+    @JoinColumn(name = "journal_entry_id")
+    private JournalEntry journalEntry;
+    
     @Enumerated(EnumType.STRING)
     @Column(name = "transaction_type", nullable = false)
     private TransactionType transactionType;

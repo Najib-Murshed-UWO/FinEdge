@@ -37,6 +37,12 @@ public class AnalyticsService {
     @Autowired
     private UserRepository userRepository;
     
+    @Autowired
+    private LoanApplicationRepository loanApplicationRepository;
+    
+    @Autowired
+    private AuditLogRepository auditLogRepository;
+    
     public Map<String, Object> getCustomerAnalytics() {
         User currentUser = getCurrentUser();
         Customer customer = customerRepository.findByUser(currentUser)
@@ -105,6 +111,61 @@ public class AnalyticsService {
             "net", totalIncome.subtract(totalExpenses)
         ));
         result.put("upcomingEMIs", upcomingEMIs.stream().limit(5).toList());
+        
+        return result;
+    }
+    
+    public Map<String, Object> getBankerAnalytics() {
+        // Get pending loan applications
+        List<com.finedge.model.LoanApplication> pendingApplications = 
+            loanApplicationRepository.findByStatus(com.finedge.model.enums.LoanStatus.SUBMITTED);
+        
+        // Get total customers
+        long totalCustomers = customerRepository.count();
+        
+        // Get recent loan applications (last 10)
+        List<com.finedge.model.LoanApplication> recentApplications = 
+            loanApplicationRepository.findAll().stream()
+                .sorted((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt()))
+                .limit(10)
+                .toList();
+        
+        Map<String, Object> result = new HashMap<>();
+        result.put("pendingApplications", pendingApplications.size());
+        result.put("totalCustomers", totalCustomers);
+        result.put("recentActivity", Map.of(
+            "recentApplications", recentApplications
+        ));
+        
+        return result;
+    }
+    
+    public Map<String, Object> getAdminAnalytics() {
+        // Get total customers
+        long totalCustomers = customerRepository.count();
+        
+        // Get recent audit logs (last 20)
+        List<com.finedge.model.AuditLog> recentAuditLogs = 
+            auditLogRepository.findAll().stream()
+                .sorted((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt()))
+                .limit(20)
+                .toList();
+        
+        // Get system statistics
+        long totalAccounts = accountRepository.count();
+        long totalLoans = loanRepository.count();
+        long totalTransactions = transactionRepository.count();
+        
+        Map<String, Object> result = new HashMap<>();
+        result.put("totalCustomers", totalCustomers);
+        result.put("totalAccounts", totalAccounts);
+        result.put("totalLoans", totalLoans);
+        result.put("totalTransactions", totalTransactions);
+        result.put("recentAuditLogs", recentAuditLogs);
+        result.put("systemHealth", Map.of(
+            "status", "operational",
+            "databaseConnected", true
+        ));
         
         return result;
     }

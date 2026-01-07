@@ -79,5 +79,9 @@ public class Loan {
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
+    
+    @Version
+    @Column(name = "version", nullable = false)
+    private Long version = 0L;
 }
 
