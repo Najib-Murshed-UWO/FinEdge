@@ -1,17 +1,66 @@
 const API_BASE = "/api";
 
+// Get token from localStorage
+function getToken(): string | null {
+  return localStorage.getItem("finedge_access_token");
+}
+
+// Request with automatic token injection and refresh
 async function request<T>(
   endpoint: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
+  retry = true
 ): Promise<T> {
+  const token = getToken();
+  
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(options.headers as Record<string, string> || {}),
+  };
+
+  // Add Authorization header if token exists
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+
   const response = await fetch(`${API_BASE}${endpoint}`, {
     ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...options.headers,
-    },
-    credentials: "include", // Include cookies for session
+    headers,
+    credentials: "include",
   });
+
+  // Handle 401 Unauthorized - try to refresh token
+  if (response.status === 401 && retry) {
+    const refreshToken = localStorage.getItem("finedge_refresh_token");
+    if (refreshToken) {
+      try {
+        const refreshResponse = await fetch(`${API_BASE}/auth/refresh`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ refreshToken }),
+          credentials: "include",
+        });
+
+        if (refreshResponse.ok) {
+          const refreshData = await refreshResponse.json();
+          localStorage.setItem("finedge_access_token", refreshData.accessToken);
+          localStorage.setItem("finedge_refresh_token", refreshData.refreshToken);
+          
+          // Retry original request with new token
+          return request<T>(endpoint, options, false);
+        }
+      } catch (error) {
+        // Refresh failed, clear auth and redirect to login
+        localStorage.removeItem("finedge_access_token");
+        localStorage.removeItem("finedge_refresh_token");
+        localStorage.removeItem("finedge_user");
+        window.location.href = "/login";
+        throw new Error("Session expired. Please login again.");
+      }
+    }
+  }
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({ message: "An error occurred" }));
@@ -24,13 +73,13 @@ async function request<T>(
 // Auth API
 export const authAPI = {
   register: (data: { username: string; email: string; password: string; role?: string; fullName?: string; phone?: string; address?: string }) =>
-    request<{ user: { id: string; username: string; email: string; role: string } }>("/auth/register", {
+    request<{ accessToken: string; refreshToken: string; tokenType: string; user: { id: string; username: string; email: string; role: string } }>("/auth/register", {
       method: "POST",
       body: JSON.stringify(data),
     }),
 
   login: (data: { username: string; password: string }) =>
-    request<{ user: { id: string; username: string; email: string; role: string } }>("/auth/login", {
+    request<{ accessToken: string; refreshToken: string; tokenType: string; user: { id: string; username: string; email: string; role: string } }>("/auth/login", {
       method: "POST",
       body: JSON.stringify(data),
     }),

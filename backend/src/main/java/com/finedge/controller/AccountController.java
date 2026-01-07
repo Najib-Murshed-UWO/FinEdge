@@ -30,8 +30,8 @@ public class AccountController {
     @GetMapping("/all")
     @PreAuthorize("hasAnyRole('BANKER', 'ADMIN')")
     public ResponseEntity<Map<String, List<Account>>> getAllAccounts(@RequestParam(required = false) String customerId) {
-        // Implementation for banker/admin to get all accounts
-        return ResponseEntity.ok(Map.of("accounts", List.of()));
+        List<Account> accounts = accountService.getAllAccounts(customerId);
+        return ResponseEntity.ok(Map.of("accounts", accounts));
     }
     
     @GetMapping("/{id}")

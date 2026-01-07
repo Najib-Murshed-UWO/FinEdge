@@ -44,7 +44,7 @@ public class BillPaymentService {
         return billPaymentRepository.findByCustomerIdOrderByPaymentDateDesc(customer.getId());
     }
     
-    @Transactional
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
     public BillPayment createPayment(BillPaymentRequest request) {
         User currentUser = getCurrentUser();
         Customer customer = customerRepository.findByUser(currentUser)
@@ -57,11 +57,17 @@ public class BillPaymentService {
             throw new CustomException("Unauthorized access", 403);
         }
         
-        Account account = accountRepository.findById(request.getAccountId())
+        // Use pessimistic locking to prevent race conditions when processing payment
+        Account account = accountRepository.findByIdWithLock(request.getAccountId())
             .orElseThrow(() -> new CustomException("Account not found", 404));
         
         if (!account.getCustomer().getId().equals(customer.getId())) {
             throw new CustomException("Unauthorized access", 403);
+        }
+        
+        // Check balance if payment needs to be processed immediately
+        if (account.getBalance().compareTo(request.getAmount()) < 0) {
+            throw new CustomException("Insufficient funds", 400);
         }
         
         BillPayment payment = new BillPayment();

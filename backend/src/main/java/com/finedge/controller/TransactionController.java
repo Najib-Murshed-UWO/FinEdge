@@ -21,14 +21,19 @@ public class TransactionController {
     private TransactionService transactionService;
     
     @GetMapping("/transactions")
-    public ResponseEntity<Map<String, List<Transaction>>> getMyTransactions() {
-        List<Transaction> transactions = transactionService.getMyTransactions();
+    public ResponseEntity<Map<String, List<Transaction>>> getMyTransactions(
+            @RequestParam(required = false, defaultValue = "100") Integer limit,
+            @RequestParam(required = false, defaultValue = "0") Integer offset) {
+        List<Transaction> transactions = transactionService.getMyTransactions(limit, offset);
         return ResponseEntity.ok(Map.of("transactions", transactions));
     }
     
     @GetMapping("/accounts/{accountId}/transactions")
-    public ResponseEntity<Map<String, List<Transaction>>> getAccountTransactions(@PathVariable String accountId) {
-        List<Transaction> transactions = transactionService.getAccountTransactions(accountId);
+    public ResponseEntity<Map<String, List<Transaction>>> getAccountTransactions(
+            @PathVariable String accountId,
+            @RequestParam(required = false, defaultValue = "100") Integer limit,
+            @RequestParam(required = false, defaultValue = "0") Integer offset) {
+        List<Transaction> transactions = transactionService.getAccountTransactions(accountId, limit, offset);
         return ResponseEntity.ok(Map.of("transactions", transactions));
     }
     

@@ -2,13 +2,16 @@ package com.finedge.repository;
 
 import com.finedge.model.EMISchedule;
 import com.finedge.model.Loan;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface EMIScheduleRepository extends JpaRepository<EMISchedule, String> {
@@ -24,5 +27,9 @@ public interface EMIScheduleRepository extends JpaRepository<EMISchedule, String
     
     @Query("SELECT e FROM EMISchedule e WHERE e.loan.id = :loanId AND e.isPaid = false AND e.dueDate < :now")
     List<EMISchedule> findOverdueEMIsByLoanId(@Param("loanId") String loanId, @Param("now") LocalDateTime now);
+    
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT e FROM EMISchedule e WHERE e.id = :id")
+    Optional<EMISchedule> findByIdWithLock(@Param("id") String id);
 }
 

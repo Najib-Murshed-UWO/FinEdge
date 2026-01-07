@@ -43,6 +43,15 @@ public class AccountService {
         return accountRepository.findByCustomer(customer);
     }
     
+    public List<Account> getAllAccounts(String customerId) {
+        if (customerId != null && !customerId.isEmpty()) {
+            Customer customer = customerRepository.findById(customerId)
+                .orElseThrow(() -> new CustomException("Customer not found", 404));
+            return accountRepository.findByCustomer(customer);
+        }
+        return accountRepository.findAll();
+    }
+    
     public Account getAccount(String id) {
         Account account = accountRepository.findById(id)
             .orElseThrow(() -> new CustomException("Account not found", 404));

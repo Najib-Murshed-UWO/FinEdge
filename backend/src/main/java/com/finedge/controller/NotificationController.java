@@ -23,17 +23,26 @@ public class NotificationController {
     
     @GetMapping
     public ResponseEntity<Map<String, List<Notification>>> getMyNotifications(
-            @RequestParam(required = false) Boolean unreadOnly) {
+            @RequestParam(required = false) Boolean unreadOnly,
+            @RequestParam(required = false, defaultValue = "50") Integer limit,
+            @RequestParam(required = false, defaultValue = "0") Integer offset) {
         String userId = getCurrentUserId();
         List<Notification> notifications;
         if (Boolean.TRUE.equals(unreadOnly)) {
             notifications = notificationService.getMyNotifications(userId).stream()
                 .filter(n -> !n.getIsRead())
+                .sorted((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt()))
                 .toList();
         } else {
-            notifications = notificationService.getMyNotifications(userId);
+            notifications = notificationService.getMyNotifications(userId).stream()
+                .sorted((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt()))
+                .toList();
         }
-        return ResponseEntity.ok(Map.of("notifications", notifications));
+        // Apply pagination
+        int fromIndex = Math.min(offset, notifications.size());
+        int toIndex = Math.min(offset + limit, notifications.size());
+        List<Notification> paginatedNotifications = notifications.subList(fromIndex, toIndex);
+        return ResponseEntity.ok(Map.of("notifications", paginatedNotifications));
     }
     
     @PatchMapping("/{id}/read")

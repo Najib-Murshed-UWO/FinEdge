@@ -16,7 +16,7 @@ public interface TransactionRepository extends JpaRepository<Transaction, String
     List<Transaction> findByAccount(Account account);
     List<Transaction> findByAccountId(String accountId);
     
-    @Query("SELECT t FROM Transaction t WHERE t.account.customer.id = :customerId")
+    @Query("SELECT t FROM Transaction t WHERE t.account.customer.id = :customerId OR (t.toAccount IS NOT NULL AND t.toAccount.customer.id = :customerId)")
     List<Transaction> findByCustomerId(@Param("customerId") String customerId);
     
     Page<Transaction> findByAccountIdOrderByCreatedAtDesc(String accountId, Pageable pageable);
