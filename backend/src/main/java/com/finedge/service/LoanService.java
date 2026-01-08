@@ -60,8 +60,6 @@ public class LoanService {
     @Autowired
     private JournalEntryRepository journalEntryRepository;
     
-    @Autowired
-    private DoubleEntryService doubleEntryService;
     
     public List<Loan> getMyLoans() {
         User currentUser = getCurrentUser();
